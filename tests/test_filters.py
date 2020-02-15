@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2018
+# Copyright (C) 2015-2020
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -27,7 +27,7 @@ import re
 
 @pytest.fixture(scope='function')
 def update():
-    return Update(0, Message(0, User(0, 'Testuser', False), datetime.datetime.now(),
+    return Update(0, Message(0, User(0, 'Testuser', False), datetime.datetime.utcnow(),
                              Chat(0, 'private')))
 
 
@@ -43,15 +43,42 @@ class TestFilters(object):
 
     def test_filters_text(self, update):
         update.message.text = 'test'
-        assert Filters.text(update)
+        assert (Filters.text)(update)
         update.message.text = '/test'
-        assert not Filters.text(update)
+        assert (Filters.text)(update)
 
-    def test_filters_command(self, update):
+    def test_filters_text_iterable(self, update):
+        update.message.text = '/test'
+        assert Filters.text({'/test', 'test1'})(update)
+        assert not Filters.text(['test1', 'test2'])(update)
+
+    def test_filters_caption(self, update):
+        update.message.caption = 'test'
+        assert (Filters.caption)(update)
+        update.message.caption = None
+        assert not (Filters.caption)(update)
+
+    def test_filters_caption_iterable(self, update):
+        update.message.caption = 'test'
+        assert Filters.caption({'test', 'test1'})(update)
+        assert not Filters.caption(['test1', 'test2'])(update)
+
+    def test_filters_command_default(self, update):
         update.message.text = 'test'
         assert not Filters.command(update)
         update.message.text = '/test'
+        assert not Filters.command(update)
+        # Only accept commands at the beginning
+        update.message.entities = [MessageEntity(MessageEntity.BOT_COMMAND, 3, 5)]
+        assert not Filters.command(update)
+        update.message.entities = [MessageEntity(MessageEntity.BOT_COMMAND, 0, 5)]
         assert Filters.command(update)
+
+    def test_filters_command_anywhere(self, update):
+        update.message.text = 'test /cmd'
+        assert not (Filters.command(False))(update)
+        update.message.entities = [MessageEntity(MessageEntity.BOT_COMMAND, 5, 4)]
+        assert (Filters.command(False))(update)
 
     def test_filters_regex(self, update):
         SRE_TYPE = type(re.match("", ""))
@@ -104,6 +131,7 @@ class TestFilters(object):
     def test_filters_merged_with_regex(self, update):
         SRE_TYPE = type(re.match("", ""))
         update.message.text = '/start deep-linked param'
+        update.message.entities = [MessageEntity(MessageEntity.BOT_COMMAND, 0, 6)]
         result = (Filters.command & Filters.regex(r'linked param'))(update)
         assert result
         assert isinstance(result, dict)
@@ -122,12 +150,9 @@ class TestFilters(object):
         matches = result['matches']
         assert isinstance(matches, list)
         assert all([type(res) == SRE_TYPE for res in matches])
+        # Should not give a match since it's a or filter and it short circuits
         result = (Filters.command | Filters.regex(r'linked param'))(update)
-        assert result
-        assert isinstance(result, dict)
-        matches = result['matches']
-        assert isinstance(matches, list)
-        assert all([type(res) == SRE_TYPE for res in matches])
+        assert result is True
 
     def test_regex_complex_merges(self, update):
         SRE_TYPE = type(re.match("", ""))
@@ -141,7 +166,7 @@ class TestFilters(object):
         assert isinstance(matches, list)
         assert len(matches) == 2
         assert all([type(res) == SRE_TYPE for res in matches])
-        update.message.forward_date = datetime.datetime.now()
+        update.message.forward_date = datetime.datetime.utcnow()
         result = filter(update)
         assert result
         assert isinstance(result, dict)
@@ -203,6 +228,7 @@ class TestFilters(object):
         result = filter(update)
         assert not result
         update.message.text = '/start'
+        update.message.entities = [MessageEntity(MessageEntity.BOT_COMMAND, 0, 6)]
         result = filter(update)
         assert result
         assert isinstance(result, bool)
@@ -217,6 +243,7 @@ class TestFilters(object):
 
     def test_regex_inverted(self, update):
         update.message.text = '/start deep-linked param'
+        update.message.entities = [MessageEntity(MessageEntity.BOT_COMMAND, 0, 5)]
         filter = ~Filters.regex(r'deep-linked param')
         result = filter(update)
         assert not result
@@ -230,6 +257,7 @@ class TestFilters(object):
         result = filter(update)
         assert not result
         update.message.text = '/start'
+        update.message.entities = [MessageEntity(MessageEntity.BOT_COMMAND, 0, 6)]
         result = filter(update)
         assert result
         update.message.text = '/linked'
@@ -238,20 +266,23 @@ class TestFilters(object):
 
         filter = (~Filters.regex('linked') | Filters.command)
         update.message.text = "it's linked"
+        update.message.entities = []
         result = filter(update)
         assert not result
         update.message.text = '/start linked'
+        update.message.entities = [MessageEntity(MessageEntity.BOT_COMMAND, 0, 6)]
         result = filter(update)
         assert result
         update.message.text = '/start'
         result = filter(update)
         assert result
         update.message.text = 'nothig'
+        update.message.entities = []
         result = filter(update)
         assert result
 
     def test_filters_reply(self, update):
-        another_message = Message(1, User(1, 'TestOther', False), datetime.datetime.now(),
+        another_message = Message(1, User(1, 'TestOther', False), datetime.datetime.utcnow(),
                                   Chat(0, 'private'))
         update.message.text = 'test'
         assert not Filters.reply(update)
@@ -478,7 +509,7 @@ class TestFilters(object):
 
     def test_filters_forwarded(self, update):
         assert not Filters.forwarded(update)
-        update.message.forward_date = datetime.datetime.now()
+        update.message.forward_date = datetime.datetime.utcnow()
         assert Filters.forwarded(update)
 
     def test_filters_game(self, update):
@@ -586,6 +617,11 @@ class TestFilters(object):
         update.message.passport_data = 'test'
         assert Filters.passport_data(update)
 
+    def test_filters_poll(self, update):
+        assert not Filters.poll(update)
+        update.message.poll = 'test'
+        assert Filters.poll(update)
+
     def test_language_filter_single(self, update):
         update.message.from_user.language_code = 'en_US'
         assert (Filters.language('en_US'))(update)
@@ -609,16 +645,16 @@ class TestFilters(object):
 
     def test_and_filters(self, update):
         update.message.text = 'test'
-        update.message.forward_date = datetime.datetime.now()
+        update.message.forward_date = datetime.datetime.utcnow()
         assert (Filters.text & Filters.forwarded)(update)
         update.message.text = '/test'
-        assert not (Filters.text & Filters.forwarded)(update)
+        assert (Filters.text & Filters.forwarded)(update)
         update.message.text = 'test'
         update.message.forward_date = None
         assert not (Filters.text & Filters.forwarded)(update)
 
         update.message.text = 'test'
-        update.message.forward_date = datetime.datetime.now()
+        update.message.forward_date = datetime.datetime.utcnow()
         assert (Filters.text & Filters.forwarded & Filters.private)(update)
 
     def test_or_filters(self, update):
@@ -633,7 +669,7 @@ class TestFilters(object):
 
     def test_and_or_filters(self, update):
         update.message.text = 'test'
-        update.message.forward_date = datetime.datetime.now()
+        update.message.forward_date = datetime.datetime.utcnow()
         assert (Filters.text & (Filters.status_update | Filters.forwarded))(update)
         update.message.forward_date = False
         assert not (Filters.text & (Filters.forwarded | Filters.status_update))(update)
@@ -646,14 +682,17 @@ class TestFilters(object):
 
     def test_inverted_filters(self, update):
         update.message.text = '/test'
+        update.message.entities = [MessageEntity(MessageEntity.BOT_COMMAND, 0, 5)]
         assert Filters.command(update)
         assert not (~Filters.command)(update)
         update.message.text = 'test'
+        update.message.entities = []
         assert not Filters.command(update)
         assert (~Filters.command)(update)
 
     def test_inverted_and_filters(self, update):
         update.message.text = '/test'
+        update.message.entities = [MessageEntity(MessageEntity.BOT_COMMAND, 0, 5)]
         update.message.forward_date = 1
         assert (Filters.forwarded & Filters.command)(update)
         assert not (~Filters.forwarded & Filters.command)(update)
@@ -665,6 +704,7 @@ class TestFilters(object):
         assert not (Filters.forwarded & ~Filters.command)(update)
         assert (~(Filters.forwarded & Filters.command))(update)
         update.message.text = 'test'
+        update.message.entities = []
         assert not (Filters.forwarded & Filters.command)(update)
         assert not (~Filters.forwarded & Filters.command)(update)
         assert not (Filters.forwarded & ~Filters.command)(update)
@@ -725,3 +765,88 @@ class TestFilters(object):
         assert Filters.update.edited_channel_post(update)
         assert Filters.update.channel_posts(update)
         assert Filters.update(update)
+
+    def test_merged_short_circuit_and(self, update):
+        update.message.text = '/test'
+        update.message.entities = [MessageEntity(MessageEntity.BOT_COMMAND, 0, 5)]
+
+        class TestException(Exception):
+            pass
+
+        class RaisingFilter(BaseFilter):
+            def filter(self, _):
+                raise TestException
+
+        raising_filter = RaisingFilter()
+
+        with pytest.raises(TestException):
+            (Filters.command & raising_filter)(update)
+
+        update.message.text = 'test'
+        update.message.entities = []
+        (Filters.command & raising_filter)(update)
+
+    def test_merged_short_circuit_or(self, update):
+        update.message.text = 'test'
+
+        class TestException(Exception):
+            pass
+
+        class RaisingFilter(BaseFilter):
+            def filter(self, _):
+                raise TestException
+
+        raising_filter = RaisingFilter()
+
+        with pytest.raises(TestException):
+            (Filters.command | raising_filter)(update)
+
+        update.message.text = '/test'
+        update.message.entities = [MessageEntity(MessageEntity.BOT_COMMAND, 0, 5)]
+        (Filters.command | raising_filter)(update)
+
+    def test_merged_data_merging_and(self, update):
+        update.message.text = '/test'
+        update.message.entities = [MessageEntity(MessageEntity.BOT_COMMAND, 0, 5)]
+
+        class DataFilter(BaseFilter):
+            data_filter = True
+
+            def __init__(self, data):
+                self.data = data
+
+            def filter(self, _):
+                return {'test': [self.data]}
+
+        result = (Filters.command & DataFilter('blah'))(update)
+        assert result['test'] == ['blah']
+
+        result = (DataFilter('blah1') & DataFilter('blah2'))(update)
+        assert result['test'] == ['blah1', 'blah2']
+
+        update.message.text = 'test'
+        update.message.entities = []
+        result = (Filters.command & DataFilter('blah'))(update)
+        assert not result
+
+    def test_merged_data_merging_or(self, update):
+        update.message.text = '/test'
+
+        class DataFilter(BaseFilter):
+            data_filter = True
+
+            def __init__(self, data):
+                self.data = data
+
+            def filter(self, _):
+                return {'test': [self.data]}
+
+        result = (Filters.command | DataFilter('blah'))(update)
+        assert result
+
+        result = (DataFilter('blah1') | DataFilter('blah2'))(update)
+        assert result['test'] == ['blah1']
+
+        update.message.text = 'test'
+        result = (Filters.command | DataFilter('blah'))(update)
+        assert result['test'] == ['blah']

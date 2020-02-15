@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # This program is dedicated to the public domain under the CC0 license.
-#
-# THIS EXAMPLE HAS BEEN UPDATED TO WORK WITH THE BETA VERSION 12 OF PYTHON-TELEGRAM-BOT.
-# If you're still using version 11.1.0, please see the examples at
-# https://github.com/python-telegram-bot/python-telegram-bot/tree/v11.1.0/examples
 
 """
 First, a few callback functions are defined. Then, those functions are passed to
@@ -19,7 +15,7 @@ bot.
 """
 
 from telegram import ReplyKeyboardMarkup
-from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters, RegexHandler,
+from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
                           ConversationHandler, PicklePersistence)
 
 import logging
@@ -51,7 +47,7 @@ def start(update, context):
     reply_text = "Hi! My name is Doctor Botter."
     if context.user_data:
         reply_text += " You already told me your {}. Why don't you tell me something more " \
-                      "about yourself? Or change enything I " \
+                      "about yourself? Or change anything I " \
                       "already know.".format(", ".join(context.user_data.keys()))
     else:
         reply_text += " I will hold a more complex conversation with you. Why don't you tell me " \
@@ -62,13 +58,13 @@ def start(update, context):
 
 
 def regular_choice(update, context):
-    text = update.message.text
+    text = update.message.text.lower()
     context.user_data['choice'] = text
     if context.user_data.get(text):
         reply_text = 'Your {}, I already know the following ' \
-                     'about that: {}'.format(text.lower(), context.user_data[text.lower()])
+                     'about that: {}'.format(text, context.user_data[text])
     else:
-        reply_text = 'Your {}? Yes, I would love to hear about that!'.format(text.lower())
+        reply_text = 'Your {}? Yes, I would love to hear about that!'.format(text)
     update.message.reply_text(reply_text)
 
     return TYPING_REPLY
@@ -113,7 +109,7 @@ def done(update, context):
 
 def error(update, context):
     """Log Errors caused by Updates."""
-    logger.warning('Update "%s" caused error "%s"', update, error)
+    logger.warning('Update "%s" caused error "%s"', update, context.error)
 
 
 def main():
@@ -129,10 +125,10 @@ def main():
         entry_points=[CommandHandler('start', start)],
 
         states={
-            CHOOSING: [RegexHandler('^(Age|Favourite colour|Number of siblings)$',
-                                    regular_choice),
-                       RegexHandler('^Something else...$',
-                                    custom_choice),
+            CHOOSING: [MessageHandler(Filters.regex('^(Age|Favourite colour|Number of siblings)$'),
+                                      regular_choice),
+                       MessageHandler(Filters.regex('^Something else...$'),
+                                      custom_choice),
                        ],
 
             TYPING_CHOICE: [MessageHandler(Filters.text,
@@ -144,7 +140,7 @@ def main():
                            ],
         },
 
-        fallbacks=[RegexHandler('^Done$', done)],
+        fallbacks=[MessageHandler(Filters.regex('^Done$'), done)],
         name="my_conversation",
         persistent=True
     )

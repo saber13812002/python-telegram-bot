@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2018
+# Copyright (C) 2015-2020
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -151,14 +151,11 @@ class Handler(object):
             optional_args['update_queue'] = dispatcher.update_queue
         if self.pass_job_queue:
             optional_args['job_queue'] = dispatcher.job_queue
-        if self.pass_user_data or self.pass_chat_data:
-            chat = update.effective_chat
+        if self.pass_user_data:
             user = update.effective_user
-
-            if self.pass_user_data:
-                optional_args['user_data'] = dispatcher.user_data[user.id if user else None]
-
-            if self.pass_chat_data:
-                optional_args['chat_data'] = dispatcher.chat_data[chat.id if chat else None]
+            optional_args['user_data'] = dispatcher.user_data[user.id if user else None]
+        if self.pass_chat_data:
+            chat = update.effective_chat
+            optional_args['chat_data'] = dispatcher.chat_data[chat.id if chat else None]
 
         return optional_args

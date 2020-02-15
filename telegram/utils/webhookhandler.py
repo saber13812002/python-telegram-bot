@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2018
+# Copyright (C) 2015-2020
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -34,8 +34,9 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 class WebhookServer(object):
 
-    def __init__(self, port, webhook_app, ssl_ctx):
+    def __init__(self, listen, port, webhook_app, ssl_ctx):
         self.http_server = HTTPServer(webhook_app, ssl_options=ssl_ctx)
+        self.listen = listen
         self.port = port
         self.loop = None
         self.logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ class WebhookServer(object):
             IOLoop().make_current()
             self.is_running = True
             self.logger.debug('Webhook Server started.')
-            self.http_server.listen(self.port)
+            self.http_server.listen(self.port, address=self.listen)
             self.loop = IOLoop.current()
             self.loop.start()
             self.logger.debug('Webhook Server stopped.')
@@ -70,8 +71,9 @@ class WebhookServer(object):
 
 class WebhookAppClass(tornado.web.Application):
 
-    def __init__(self, webhook_path, bot, update_queue):
-        self.shared_objects = {"bot": bot, "update_queue": update_queue}
+    def __init__(self, webhook_path, bot, update_queue, default_quote=None):
+        self.shared_objects = {"bot": bot, "update_queue": update_queue,
+                               "default_quote": default_quote}
         handlers = [
             (r"{0}/?".format(webhook_path), WebhookHandler,
              self.shared_objects)
@@ -90,9 +92,10 @@ class WebhookHandler(tornado.web.RequestHandler):
         super(WebhookHandler, self).__init__(application, request, **kwargs)
         self.logger = logging.getLogger(__name__)
 
-    def initialize(self, bot, update_queue):
+    def initialize(self, bot, update_queue, default_quote=None):
         self.bot = bot
         self.update_queue = update_queue
+        self._default_quote = default_quote
 
     def set_default_headers(self):
         self.set_header("Content-Type", 'application/json; charset="utf-8"')
@@ -104,6 +107,7 @@ class WebhookHandler(tornado.web.RequestHandler):
         data = json.loads(json_string)
         self.set_status(200)
         self.logger.debug('Webhook received data: ' + json_string)
+        data['default_quote'] = self._default_quote
         update = Update.de_json(data, self.bot)
         self.logger.debug('Received Update with ID %d on Webhook' % update.update_id)
         self.update_queue.put(update)

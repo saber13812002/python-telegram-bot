@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #
 # A library that provides a Python interface to the Telegram Bot API
-# Copyright (C) 2015-2018
+# Copyright (C) 2015-2020
 # Leandro Toledo de Souza <devs@python-telegram-bot.org>
 #
 # This program is free software: you can redistribute it and/or modify
@@ -332,14 +332,15 @@ class PrefixHandler(CommandHandler):
         if isinstance(update, Update) and update.effective_message:
             message = update.effective_message
 
-            text_list = message.text.split()
-            if text_list[0].lower() not in self.command:
-                return None
-            filter_result = self.filters(update)
-            if filter_result:
-                return text_list[1:], filter_result
-            else:
-                return False
+            if message.text:
+                text_list = message.text.split()
+                if text_list[0].lower() not in self.command:
+                    return None
+                filter_result = self.filters(update)
+                if filter_result:
+                    return text_list[1:], filter_result
+                else:
+                    return False
 
     def collect_additional_context(self, context, update, dispatcher, check_result):
         context.args = check_result[0]

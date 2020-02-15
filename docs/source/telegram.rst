@@ -13,6 +13,7 @@ telegram package
     telegram.chat
     telegram.chataction
     telegram.chatmember
+    telegram.chatpermissions
     telegram.chatphoto
     telegram.constants
     telegram.contact
@@ -31,10 +32,13 @@ telegram package
     telegram.inputmediavideo
     telegram.keyboardbutton
     telegram.location
+    telegram.loginurl
     telegram.message
     telegram.messageentity
     telegram.parsemode
     telegram.photosize
+    telegram.poll
+    telegram.polloption
     telegram.replykeyboardremove
     telegram.replykeyboardmarkup
     telegram.replymarkup
@@ -138,8 +142,4 @@ Passport
     telegram.encryptedpassportelement
     telegram.encryptedcredentials
 
-telegram.utils
---------------
-
-.. toctree::
-    telegram.utils
+.. include:: telegram.utils.rst
